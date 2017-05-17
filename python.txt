@@ -1,0 +1,118 @@
+import RPi.GPIO as GPIO
+import time, sys
+import datetime
+import glob
+import MySQLdb
+from time import strftime
+
+FLOW_SENSOR1 = 23
+FLOW_SENSOR2 = 24
+FLOW_SENSOR3 = 25
+
+db = MySQLdb.connect(host="localhost",
+                     user="root",
+                     passwd="passwoord",
+                     db="databasenaam")
+cur = db.cursor()
+
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(FLOW_SENSOR1, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+GPIO.setup(FLOW_SENSOR2, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+GPIO.setup(FLOW_SENSOR3, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+
+global countDouche
+global countWas
+global countkeuken
+global totalWater
+
+global literD
+global literW
+global literK
+global milliterD
+global milliterW
+global milliterK
+countDouche = 0
+countWas = 0
+countkeuken = 0
+totalWater = 0
+literD = 0
+literW = 0
+literK = 0
+
+
+
+def countPulse1(channel):
+        global literD
+global countDouche
+countDouche = countDouche+1
+datetimeWrite = (time.strftime("%Y-%m-%d ") + time.strftime("%H:%M:%S"))
+print datetimeWrite
+print 'count douche:', countDouche
+        literD = countDouche / 450
+        print 'liter douche:', literD
+        updatedb()
+        milliterD = round(countDouche / 0.45)
+        print 'mililiters douche:', milliterD
+
+def countPulse2(channel):
+        global literW
+global countWas
+countWas = countWas+1
+print 'count wastafel:', countWas
+        literW = countWas / 450
+        print 'liter wastafel:', literW
+        updatedb()
+        milliterW = round(countWas / 0.45)
+        print 'mililiters wastafel:', milliterW
+
+def countPulse3(channel):
+        global literK
+global countkeuken
+countkeuken = countkeuken+1
+print 'count keuken:', countkeuken
+        literK = countkeuken / 450
+        print 'liter keuken:', literK
+        updatedb()
+        milliterK = round(countkeuken / 0.45)
+        print 'mililiters keuken:', milliterK
+
+
+
+lastt = 1
+
+def updatedb():
+        global lastt
+        totalWater = literD+literW+literK
+        print totalWater
+        print lastt
+        print countkeuken
+        if totalWater == lastt:
+                lastt = lastt+1
+                datetime = (time.strftime("%Y-%m-%d ") + time.strftime("%H:%M:%S"))
+                print datetime
+                sql = ("""INSERT INTO waterstand (datetime,totalwater,douchewater,wastafelwater,keukenwater) VALUES (%s,%s,%s,%s,%s)""",(datetime, totalWater, literD, literW, literK))
+                try:
+                        print "write"
+                        cur.execute(*sql)
+                        db.commit()
+                        print "complete"
+
+                except:
+                        db.rollback()
+                        print "fail"
+
+                
+        
+
+
+GPIO.add_event_detect(FLOW_SENSOR1, GPIO.FALLING, callback=countPulse1)
+GPIO.add_event_detect(FLOW_SENSOR2, GPIO.FALLING, callback=countPulse2)
+GPIO.add_event_detect(FLOW_SENSOR3, GPIO.FALLING, callback=countPulse3)
+
+while True:
+try:
+time.sleep(1)
+except KeyboardInterrupt:
+print 'key board interrupt'
+GPIO.cleanup()
+sys.exit()
